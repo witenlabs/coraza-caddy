@@ -45,6 +45,8 @@ jobs:
         run: GOFLAGS= go test -count=1 -run '^TestBuildQualification$' .
       - name: Vet
         run: go vet ./...
+      - name: Lint and dependency consistency
+        run: go run mage.go lint
       - name: Custom Caddy build
         run: go build -buildvcs=false -trimpath -o build/caddy ./caddy
       - name: Connector module exists

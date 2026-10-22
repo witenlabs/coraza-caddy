@@ -66,6 +66,7 @@ From this checkout:
 export GOFLAGS=-tags=coraza.no_memoize
 go test -race -count=1 ./...
 go vet ./...
+go run mage.go lint
 go build -buildvcs=false -trimpath -o build/caddy ./caddy
 ./build/caddy list-modules
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -test ./...
@@ -110,8 +111,9 @@ long tenant churn, representative CRS behavior, HTTP/2/3, proxy address trust
 and streaming still need qualification before a host trial. No production host,
 PHP-FPM, SELinux or logging configuration is changed by building this fork.
 
-The Witen CI workflow is read-only and runs tests, vet, a custom Caddy build and
-the official vulnerability checker. Upstream-specific automation remains in the
+The Witen CI workflow is read-only and runs tests, vet, the existing lint and
+dependency consistency gate, a custom Caddy build and the official vulnerability
+checker. Upstream-specific automation remains in the
 tree but is restricted to the upstream repository; no automatic downstream tag,
 release, stale-issue message or upstream contact is configured. Keep patches
 separable so individual fixes can later be proposed upstream and retired here.
