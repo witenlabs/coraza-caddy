@@ -53,6 +53,14 @@ The initial candidate uses Go 1.26.10, Caddy 2.11.4 and Coraza 3.8.1, with
 The upstream default branch also uses the split embedded Coraza configuration
 and CRS modules; preserve their pinned versions rather than floating rules.
 
+Host-trial qualification adds a separately pinned [Witen core companion](https://github.com/witenlabs/coraza/tree/witen-v3.8.1)
+at `7fda999742423c2cc64092103bdd714bf183d3ca`, based on Coraza 3.8.1.
+It reports serial audit write errors and closes initialized writers after active
+transactions drain, including failed-construction cleanup. Module consumers must
+copy the core replacement from this go.mod: dependency replacements are not
+inherited transitively. Its generated Go pseudo-version uses the fork's module
+history; the reviewed upstream source base remains 3.8.1.
+
 The official scanner reports no reachable vulnerability in this build. It
 also reports GO-2026-6094 in CEL 0.28.1's unused NativeTypes/ParseStructTag paths
 and GO-2026-5932 in the unimported x/crypto/openpgp package. CEL 0.30.0 fixes
@@ -76,13 +84,16 @@ For another Go project, use a local replacement during development:
 
 ```go
 replace github.com/corazawaf/coraza-caddy/v2 => ../coraza-caddy
+
+replace github.com/corazawaf/coraza/v3 => github.com/witenlabs/coraza/v3 v3.0.0-20261022033216-7fda99974242
 ```
 
 For xcaddy, pin the downstream commit, substituting its full SHA:
 
 ```sh
 GOFLAGS=-tags=coraza.no_memoize xcaddy build v2.11.4 \
-  --with github.com/corazawaf/coraza-caddy/v2=github.com/witenlabs/coraza-caddy/v2@DOWNSTREAM_COMMIT
+  --with github.com/corazawaf/coraza-caddy/v2=github.com/witenlabs/coraza-caddy/v2@DOWNSTREAM_COMMIT \
+  --with github.com/corazawaf/coraza/v3=github.com/witenlabs/coraza/v3@7fda999742423c2cc64092103bdd714bf183d3ca
 ```
 
 There is no stable downstream tag yet. Upstream version tags identify upstream
@@ -103,12 +114,16 @@ Reviewed observation rules can use `nolog,auditlog` with a qualified redacting
 formatter. Do not enable raw access logs, match data or unreviewed rules through
 a metadata signature update. Keep source collection and enforcement separate.
 
-The audit serial-writer write-error issue belongs to Coraza core. This connector
-patch does not repair it. Core's Close currently releases matcher-cache ownership;
-complete audit-writer resource cleanup also needs qualification. Independent
-delivery monitoring, rotation/reopening,
-long tenant churn, representative CRS behavior, HTTP/2/3, proxy address trust
-and streaming still need qualification before a host trial. No production host,
+The companion core fixes audit writer errors/ownership without introducing a
+second core implementation here. Operational error output requires
+`SecDebugLogLevel 1`; level 0 suppresses it. Reviewed rules still use `nolog,auditlog`
+and the external redacting formatter. Disk-write errors do not prove delivery or
+change HTTP responses. Independent canaries and Warden ingestion checks remain
+required. See [HOST-TRIAL.md](HOST-TRIAL.md) for rotation and the explicit proxy
+transport workaround qualified by the sustained lab.
+
+Representative long-running tenant churn, HTTP/2/3, proxy address trust
+and streaming still need qualification before a live host trial. No production host,
 PHP-FPM, SELinux or logging configuration is changed by building this fork.
 
 The Witen CI workflow is read-only and runs tests, vet, the existing lint and

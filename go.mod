@@ -191,3 +191,5 @@ require (
 	howett.net/plist v1.0.0 // indirect
 	rsc.io/binaryregexp v0.2.0 // indirect
 )
+
+replace github.com/corazawaf/coraza/v3 => github.com/witenlabs/coraza/v3 v3.0.0-20261022033216-7fda99974242
