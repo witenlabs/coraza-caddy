@@ -1,5 +1,7 @@
 // Copyright 2025 The OWASP Coraza contributors
 // SPDX-License-Identifier: Apache-2.0
+// Modified by Witen Labs in 2026: verify configuration-owned WAF cleanup
+// and independent policy generations instead of process-global pooling.
 
 package coraza
 
@@ -330,35 +332,28 @@ func TestCleanup(t *testing.T) {
 	waf, err := corazaWAF.NewWAF(corazaWAF.NewWAFConfig().WithDirectives("SecRuleEngine On"))
 	require.NoError(t, err)
 
-	poolKey := "test-cleanup-key"
-	// Store the WAF in the pool so Cleanup can release it.
-	wafPool.LoadOrStore(poolKey, &pooledWAF{waf: waf})
-
 	m := &corazaModule{
-		waf:     waf,
-		logger:  zap.NewNop(),
-		poolKey: poolKey,
+		waf:    waf,
+		logger: zap.NewNop(),
 	}
 
 	require.NotNil(t, m.waf, "waf should be set before Cleanup")
 	require.NotNil(t, m.logger, "logger should be set before Cleanup")
 
-	// Cleanup delegates to the pool; the module fields are left as-is.
 	require.NoError(t, m.Cleanup())
-
-	// Pool entry should have been deleted (ref count was 1).
-	_, exists := wafPool.References(poolKey)
-	require.False(t, exists, "pool entry should be removed after Cleanup")
+	require.Nil(t, m.waf, "Cleanup must release its WAF reference")
+	require.NoError(t, m.Cleanup(), "Cleanup must be idempotent")
 }
 
 // closerWAF wraps a coraza.WAF and tracks whether Close was called.
 type closerWAF struct {
 	corazaWAF.WAF
-	closed bool
+	closed     bool
+	closeCalls int
 }
 
 // noCloser wraps a coraza.WAF without exposing io.Closer, so that the
-// non-closer branch of Destruct() is reliably exercised.
+// non-closer branch of Cleanup() is reliably exercised.
 type noCloser struct{ inner corazaWAF.WAF }
 
 func (n noCloser) NewTransaction() types.Transaction {
@@ -371,6 +366,10 @@ func (n noCloser) NewTransactionWithID(id string) types.Transaction {
 
 func (c *closerWAF) Close() error {
 	c.closed = true
+	c.closeCalls++
+	if closer, ok := c.WAF.(io.Closer); ok {
+		return closer.Close()
+	}
 	return nil
 }
 
@@ -380,64 +379,58 @@ type errCloser struct {
 	err error
 }
 
-func (e *errCloser) Close() error { return e.err }
+func (e *errCloser) Close() error {
+	if closer, ok := e.WAF.(io.Closer); ok {
+		return errors.Join(e.err, closer.Close())
+	}
+	return e.err
+}
 
-func TestDestructCallsClose(t *testing.T) {
+func TestCleanupCallsCloseOnce(t *testing.T) {
 	waf, err := corazaWAF.NewWAF(corazaWAF.NewWAFConfig().WithDirectives("SecRuleEngine On"))
 	require.NoError(t, err)
 
 	cw := &closerWAF{WAF: waf}
-	pw := &pooledWAF{waf: cw}
+	m := &corazaModule{waf: cw}
 
-	require.NoError(t, pw.Destruct())
-	require.True(t, cw.closed, "Destruct should call Close on WAFs implementing io.Closer")
-	require.Nil(t, pw.waf, "waf should be nil after Destruct")
+	require.NoError(t, m.Cleanup())
+	require.True(t, cw.closed, "Cleanup should call Close on WAFs implementing io.Closer")
+	require.Nil(t, m.waf, "waf should be nil after Cleanup")
+	require.NoError(t, m.Cleanup())
+	require.Equal(t, 1, cw.closeCalls)
 }
 
-func TestDestructNilsWAFField(t *testing.T) {
+func TestCleanupWithoutCloser(t *testing.T) {
 	waf, err := corazaWAF.NewWAF(corazaWAF.NewWAFConfig().WithDirectives("SecRuleEngine On"))
 	require.NoError(t, err)
 
 	// Wrap in noCloser to guarantee the non-io.Closer path is exercised,
 	// regardless of whether the underlying coraza.WAF implements io.Closer.
-	pw := &pooledWAF{waf: noCloser{inner: waf}}
+	m := &corazaModule{waf: noCloser{inner: waf}}
 
-	require.NoError(t, pw.Destruct())
-	require.Nil(t, pw.waf, "waf should be nil after Destruct")
+	require.NoError(t, m.Cleanup())
+	require.Nil(t, m.waf, "waf should be nil after Cleanup")
 }
 
-func TestDestructPropagatesCloseError(t *testing.T) {
+func TestCleanupPropagatesCloseError(t *testing.T) {
 	waf, err := corazaWAF.NewWAF(corazaWAF.NewWAFConfig().WithDirectives("SecRuleEngine On"))
 	require.NoError(t, err)
 
 	closeErr := errors.New("close failed")
 	ec := &errCloser{WAF: waf, err: closeErr}
-	pw := &pooledWAF{waf: ec}
+	m := &corazaModule{waf: ec}
 
-	destructErr := pw.Destruct()
-	require.ErrorIs(t, destructErr, closeErr, "Destruct should propagate the Close error")
-	require.Nil(t, pw.waf, "waf should be nil after Destruct even when Close fails")
+	cleanupErr := m.Cleanup()
+	require.ErrorIs(t, cleanupErr, closeErr, "Cleanup should propagate the Close error")
+	require.Nil(t, m.waf, "waf should be nil after Cleanup even when Close fails")
+	require.NoError(t, m.Cleanup(), "failed close must not be retried on a retired instance")
 }
 
-func TestUsagePoolReuse(t *testing.T) {
-	// Simulate two modules with the same config — they should share a WAF.
-	m1 := &corazaModule{
-		Directives: "SecRuleEngine On",
-	}
-	m2 := &corazaModule{
-		Directives: "SecRuleEngine On",
-	}
-
-	require.Equal(t, m1.computePoolKey(), m2.computePoolKey(),
-		"identical configs must produce the same pool key")
-
-	// Different config should produce a different key.
-	m3 := &corazaModule{
-		Directives:   "SecRuleEngine On",
-		LoadOWASPCRS: true,
-	}
-	require.NotEqual(t, m1.computePoolKey(), m3.computePoolKey(),
-		"different configs must produce different pool keys")
+func TestPolicyGenerationsOwnTheirWAF(t *testing.T) {
+	m1 := provisionReloadModule(t, "SecRuleEngine On\n"+reloadRule("/match", 70001), nil)
+	m2 := provisionReloadModule(t, "SecRuleEngine On\n"+reloadRule("/match", 70001), nil)
+	require.NoError(t, m1.Cleanup())
+	require.NotNil(t, requestInterruption(t, m2, "/match"), "retiring one generation must leave the other usable")
 }
 
 func TestNewErrorCb(t *testing.T) {

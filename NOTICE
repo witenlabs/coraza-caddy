@@ -1,0 +1,8 @@
+Coraza Caddy connector — Witen downstream
+
+Based on https://github.com/corazawaf/coraza-caddy.
+Original source and attribution belong to the OWASP Coraza contributors.
+Downstream modifications copyright 2026 Witen Labs.
+
+Licensed under the Apache License, Version 2.0; see LICENSE.
+See FORK.md and Git history for the downstream changes and upstream base.

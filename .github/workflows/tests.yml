@@ -1,3 +1,4 @@
+# Modified by Witen Labs in 2026: restrict upstream automation to upstream.
 name: Tests
 
 on:
@@ -18,6 +19,7 @@ permissions: {}
 
 jobs:
   test:
+    if: github.repository == 'corazawaf/coraza-caddy'
     strategy:
       matrix:
         go-version: [1.26.x]

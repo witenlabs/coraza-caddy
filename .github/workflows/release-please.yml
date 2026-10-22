@@ -1,3 +1,4 @@
+# Modified by Witen Labs in 2026: restrict upstream automation to upstream.
 name: release-please
 
 # default token permissions: none
@@ -16,6 +17,7 @@ on:
 
 jobs:
   release-please:
+    if: github.repository == 'corazawaf/coraza-caddy'
     runs-on: ubuntu-latest
     # The real release path's writes (PR, changelog commit, tag) go through
     # the separately-scoped App token below, not this job's GITHUB_TOKEN --

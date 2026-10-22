@@ -1,3 +1,4 @@
+# Modified by Witen Labs in 2026: restrict upstream automation to upstream.
 name: Nightly Caddy
 on:
   pull_request:
@@ -15,6 +16,7 @@ permissions: {}
 
 jobs:
   nightly-caddy:
+    if: github.repository == 'corazawaf/coraza-caddy'
     name: "Nightly Caddy (caddy version: ${{ github.event.inputs.caddyversion || 'master' }})"
     strategy:
       matrix:

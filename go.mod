@@ -1,6 +1,8 @@
 module github.com/corazawaf/coraza-caddy/v2
 
-go 1.26.0
+// Witen Labs downstream, 2026: patched Go floor and dependency pins; see FORK.md.
+
+go 1.26.10
 
 require (
 	github.com/caddyserver/caddy/v2 v2.11.4

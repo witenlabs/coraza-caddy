@@ -1,12 +1,24 @@
-# Coraza WAF Caddy Module
+# Witen downstream Coraza Caddy connector
 
-[![Tests](https://github.com/corazawaf/coraza-caddy/actions/workflows/tests.yml/badge.svg)](https://github.com/corazawaf/coraza-caddy/actions/workflows/tests.yml)
+This is Witen Labs' focused fork of
+[corazawaf/coraza-caddy](https://github.com/corazawaf/coraza-caddy), licensed
+under Apache-2.0. See [FORK.md](FORK.md) for the patch scope, tested build,
+module replacement instructions and remaining qualification work. The original
+module path and Caddy configuration names remain compatible with upstream.
+This initial downstream candidate is experimental and has not been deployed.
+
+<!-- Modified by Witen Labs in 2026: identify the downstream project, build
+instructions and qualified scope. Upstream attribution and license retained. -->
+
+## Coraza WAF Caddy Module
+
+[![Witen CI](https://github.com/witenlabs/coraza-caddy/actions/workflows/witen.yml/badge.svg)](https://github.com/witenlabs/coraza-caddy/actions/workflows/witen.yml)
 <a href="https://pkg.go.dev/github.com/corazawaf/coraza-caddy" target="_blank"><img src="https://img.shields.io/badge/godoc-reference-blue.svg"></a>
-[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 
 [OWASP Coraza](https://github.com/corazawaf/coraza) Caddy Module provides Web Application Firewall capabilities for Caddy.
 
-OWASP Coraza WAF is 100% compatible with OWASP Coreruleset and Modsecurity syntax.
+Coraza implements ModSecurity-style SecLang and integrates with OWASP CRS.
+Qualify the selected engine, connector and rule versions for your workload.
 ## CRS Documentation
 
 If you’re looking for installation guidance, tuning, false-positive handling, or
@@ -20,7 +32,7 @@ maintaining CRS rule documentation.
 `go run mage.go -l` lists all the available commands:
 
 ```bash
-▶ go run mage.go -l
+go run mage.go -l
 Targets:
   buildCaddy        builds the plugin.
   buildCaddyLinux   builds the plugin with GOOS=linux.
@@ -79,7 +91,7 @@ http://127.0.0.1:8080 {
 Run:
 
 ```shell
-xcaddy build --with github.com/corazawaf/coraza-caddy/v2
+go build -tags=coraza.no_memoize -buildvcs=false -trimpath -o build/caddy ./caddy
 ```
 
 ## Testing
@@ -87,7 +99,7 @@ xcaddy build --with github.com/corazawaf/coraza-caddy/v2
 You may run the test suite by executing:
 
 ```shell
-go run mage.go test
+GOFLAGS=-tags=coraza.no_memoize go run mage.go test
 ```
 
 ## Using OWASP Core Ruleset
@@ -138,7 +150,7 @@ for every `--with` package, so a plugin that registers itself and needs no
 configuration can be added straight to the build:
 
 ```shell
-xcaddy build --with github.com/corazawaf/coraza-caddy/v2 \
+GOFLAGS=-tags=coraza.no_memoize xcaddy build --with github.com/corazawaf/coraza-caddy/v2=. \
   --with github.com/some/coraza-plugin
 ```
 
@@ -201,18 +213,14 @@ This is useful when running coraza behind another HTTP server and using the requ
 
 ## Performance
 
-Coraza memoizes the expensive parts of rule compilation (regex and
-aho-corasick pattern compilation) so identical patterns are not recompiled when
-several WAF instances in the same process share the same rules. This matters
-most when one Caddy process serves many sites that each load CRS.
-
-**Memoization is enabled by default.** There is no flag to turn it on. The
-`coraza.no_memoize` build tag exists only to turn it *off*:
+Upstream Coraza enables compiled matcher memoization by default. This initial
+Witen candidate requires `coraza.no_memoize` because Coraza 3.8.1 can otherwise
+retain stale file-backed dictionaries across reloads. See [FORK.md](FORK.md).
 
 | Build tag | Behaviour |
 |---|---|
-| *(none)* | Memoization enabled (default) |
-| `coraza.no_memoize` | Disabled — every pattern compiles fresh |
+| *(none)* | Connector refuses activation with a build instruction |
+| `coraza.no_memoize` | Qualified candidate mode; every pattern compiles fresh |
 
 Older guidance recommends building with `-tags memoize_builders`. That tag was
 how memoization was opted into up to Coraza v3.4.0, when the default was off. It
@@ -220,10 +228,10 @@ was removed in v3.5.0 once memoization became the default. Go ignores unknown
 build tags silently, so passing it today neither fails nor does anything — drop
 it from your build.
 
-The cache is global to the process, so entries are released when a WAF is
-destroyed. This module already does that: the pooled WAF is closed through
-`caddy.Destructor` when the last reference is released, which is what lets
-memory be reclaimed across config reloads.
+Every configuration now owns its WAF and calls Close when retired. Repeated
+rule compilation and separate instances can increase reload time and peak
+memory. Measure the intended site/rule count and sustained churn; a short
+successful reload does not establish a memory bound for production.
 
 
 ## Running Example
@@ -231,7 +239,7 @@ memory be reclaimed across config reloads.
 ### Docker
 
 ```bash
-go run mage.go buildExample runExample
+GOFLAGS=-tags=coraza.no_memoize go run mage.go buildExample runExample
 curl -i localhost:8080/
 ```
 
@@ -242,7 +250,7 @@ curl -i localhost:8080/
 go run github.com/mccutchen/go-httpbin/v2/cmd/go-httpbin@v2.9.0 -port 8081
 
 # in terminal 2
-go run mage.go buildCaddy
+GOFLAGS=-tags=coraza.no_memoize go run mage.go buildCaddy
 ./build/caddy run --config example/Caddyfile --adapter caddyfile
 
 # in terminal 3

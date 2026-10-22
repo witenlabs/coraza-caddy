@@ -1,5 +1,6 @@
 // Copyright 2023 The OWASP Coraza contributors
 // SPDX-License-Identifier: Apache-2.0
+// Modified by Witen Labs in 2026: normalize the version declaration formatting.
 
 //go:build mage
 // +build mage
@@ -18,7 +19,7 @@ import (
 )
 
 var addLicenseVersion = "v1.2.0" // https://github.com/google/addlicense
-var golangCILintVer = "v2.10.1"   // https://github.com/golangci/golangci-lint/releases
+var golangCILintVer = "v2.10.1"  // https://github.com/golangci/golangci-lint/releases
 var gosImportsVer = "v0.3.8"     // https://github.com/rinchsan/gosimports/releases/tag/v0.1.5
 
 var errRunGoModTidy = errors.New("go.mod/sum not formatted, commit changes")

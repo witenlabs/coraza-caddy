@@ -1,3 +1,4 @@
+# Modified by Witen Labs in 2026: restrict upstream automation to upstream.
 name: "CodeQL"
 
 on:
@@ -14,6 +15,7 @@ permissions: {}
 
 jobs:
   analyze:
+    if: github.repository == 'corazawaf/coraza-caddy'
     name: Analyze
     runs-on: ubuntu-latest
     permissions:

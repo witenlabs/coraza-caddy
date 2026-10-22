@@ -1,3 +1,4 @@
+# Modified by Witen Labs in 2026: restrict upstream automation to upstream.
 name: Close inactive issues
 on:
   schedule:
@@ -7,6 +8,7 @@ permissions: {}
 
 jobs:
   close-issues:
+    if: github.repository == 'corazawaf/coraza-caddy'
     runs-on: ubuntu-latest
     permissions:
       issues: write
