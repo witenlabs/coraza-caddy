@@ -1,7 +1,8 @@
 # Witen downstream scope
 
-This fork starts from upstream main
-`e268cf0f44e95d64da81c641aabebd21364be6f1` (2026-10-15).
+This fork originally started from upstream main
+`e268cf0f44e95d64da81c641aabebd21364be6f1` (2026-10-15). It now includes
+upstream main through `507369840caef8c15554c5a9464e7f9a57b22d6b` (2026-11-11).
 The upstream source/history, Apache-2.0 license and attribution are preserved.
 New downstream commits are authored by Witen Labs. Maintaining this candidate
 does not establish an upstream maintainer role or production support promise.
@@ -48,24 +49,28 @@ The module remains `github.com/corazawaf/coraza-caddy/v2`. The module ID remains
 one implementation into a Caddy binary. Warden/catalog adapters stay outside
 this repository.
 
-The initial candidate uses Go 1.26.10, Caddy 2.11.4 and Coraza 3.8.1, with
-`golang.org/x/net` 0.60.0 and its required companion dependency versions.
+The synchronized candidate uses Go 1.26.11, Caddy 2.11.7 and the pinned Witen
+core companion, including upstream engine changes after Coraza 3.8.1. It uses
+`golang.org/x/net` 0.62.0 and `golang.org/x/crypto` 0.59.0.
+The downstream security floor also requires `klauspost/compress` 1.20.2 for
+GO-2026-6865 and Go 1.26.11 for GO-2026-6859, beyond upstream's current pins.
 The upstream default branch also uses the split embedded Coraza configuration
 and CRS modules; preserve their pinned versions rather than floating rules.
 
-Host-trial qualification adds a separately pinned [Witen core companion](https://github.com/witenlabs/coraza/tree/witen-v3.8.1)
-at `7fda999742423c2cc64092103bdd714bf183d3ca`, based on Coraza 3.8.1.
+The synchronized build pins the [Witen core companion](https://github.com/witenlabs/coraza/tree/witen-v3.8.1)
+at `c0f49ce03ae84329c497560a4a07874cb65b86ae`, including upstream engine main
+through `8538b97cc1d7b0cc03384704f1b5cfb035e4c83c`.
 It reports serial audit write errors and closes initialized writers after active
 transactions drain, including failed-construction cleanup. Module consumers must
 copy the core replacement from this go.mod: dependency replacements are not
 inherited transitively. Its generated Go pseudo-version uses the fork's module
-history; the reviewed upstream source base remains 3.8.1.
+history; this is an upstream-main snapshot rather than a tagged Coraza release.
 
-The official scanner reports no reachable vulnerability in this build. It
-also reports GO-2026-6094 in CEL 0.28.1's unused NativeTypes/ParseStructTag paths
-and GO-2026-5932 in the unimported x/crypto/openpgp package. CEL 0.30.0 fixes
-the former but its changed interpreter API fails to compile with Caddy 2.11.4;
-retain the compatible pin and track a coordinated Caddy/CEL update. No stable
+The Caddy update also moves CEL to `cel.dev/cel-go` 0.32.0; the existing CEL
+routing compatibility regression must pass with this graph. Run the official
+vulnerability scanner against the exact pinned build rather than carrying over
+the earlier candidate's result. Fork replacement paths can limit upstream
+advisory matching; retain the explicit upstream baseline review. No stable
 security qualification is claimed for this experimental candidate.
 
 From this checkout:
@@ -85,7 +90,7 @@ For another Go project, use a local replacement during development:
 ```go
 replace github.com/corazawaf/coraza-caddy/v2 => ../coraza-caddy
 
-replace github.com/corazawaf/coraza/v3 => github.com/witenlabs/coraza/v3 v3.0.0-20261022033216-7fda99974242
+replace github.com/corazawaf/coraza/v3 => github.com/witenlabs/coraza/v3 v3.0.0-20261112033219-c0f49ce03ae8
 ```
 
 For xcaddy, pin the downstream commit, substituting its full SHA:
@@ -122,8 +127,11 @@ change HTTP responses. Independent canaries and Warden ingestion checks remain
 required. See [HOST-TRIAL.md](HOST-TRIAL.md) for rotation and the explicit proxy
 transport workaround qualified by the sustained lab.
 
-Representative long-running tenant churn, HTTP/2/3, proxy address trust
-and streaming still need qualification before a live host trial. No production host,
+The synchronized build passes the bounded TLS/HTTP/1.1/HTTP/2/HTTP/3 replay,
+streaming/reload/cancellation, direct/loopback proxy trust and one-minute
+reload/rotation soak. Representative long-running tenant churn, the selected
+host's real proxy chain and certificate automation still need qualification.
+No production host,
 PHP-FPM, SELinux or logging configuration is changed by building this fork.
 
 The Witen CI workflow is read-only and runs tests, vet, the existing lint and
